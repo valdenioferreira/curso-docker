@@ -1,0 +1,74 @@
+version: "3.8"
+
+services:
+  db:
+    image: mysql:8.2.0
+    env_file:
+      - ./db/.env
+    ports:
+      - "3306:3306"
+    networks:
+      - app-network
+    volumes:
+      - db_data:/var/lib/mysql
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+       - "80:80"
+    networks:
+      - app-network
+
+  app:
+    build:
+      context: ./app
+    ports:
+      - 8000:8000
+    volumes:
+      - ./app:/app
+    networks:
+      - app-network
+    env_file:
+      - ./app/.env
+    depends_on:
+      - db
+    command: ["gunicorn", "setup.wsgi:application", "-w", "2", "-b", ":8000"]
+
+  db-migrate:
+    build:
+      context: ./app
+    volumes:
+      - ./app:/app
+    networks:
+      - app-network
+    env_file:
+      - ./app/.env
+    depends_on:
+      - db
+    profiles:
+      - tools
+    command: ["python", "manage.py", "migrate"]
+
+  collectstatic:
+    build:
+      context: ./app
+    volumes:
+      - ./app:/app
+    networks:
+      - app-network
+    env_file:
+      - ./app/.env
+    depends_on:
+      - db
+    profiles:
+      - tools
+    command: ["python", "manage.py", "collectstatic"]
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db_data:
